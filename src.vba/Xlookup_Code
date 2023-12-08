@@ -1,0 +1,167 @@
+Option Explicit
+'Created by Bart Spaans 08/12/2023 https://github.com/spaansba
+Public commonHeaders() As Variant, user_selected_header As String
+Private Sub multiple_xlookups()
+    Dim i As Long, j As Long
+    On Error GoTo ending
+
+    'Ask user for the target range
+    Dim input1 As Variant, input2 As Variant
+    Set input1 = Application.InputBox("Select cell in range you want to backfill", "Range to fill - Maestro", Selection.Address, Type:=8)
+    If input1 Is Nothing Then Exit Sub
+    
+    'If only one cell selected, select the whole currentregion (this saves time when using the tool 1000 times lol)
+    If input1.Cells.CountLarge = 1 Then
+    
+        'if user selects empty cell we cant do .currentregion
+        If input1 = "" Then Set input1 = input1.End(xlUp)
+        
+        'Select currentregion of input
+        Set input1 = input1.CurrentRegion
+    End If
+    
+    'Ask user for the raw data range
+    Set input2 = Application.InputBox("Select cell in range with the raw data", "Range where the data should be gathered from - Maestro", Type:=8)
+    If input2 Is Nothing Then Exit Sub
+    
+    'If only one cell selected, select the whole currentregion (this saves time when using the tool 1000 times lol)
+    If input2.Cells.CountLarge = 1 Then
+        Set input2 = input2.CurrentRegion
+    End If
+    
+    'Get a list of headers that are available in both tables, both the headers need to have values in them to be eligible
+    Dim target_range_headers() As String, hasvalues As Boolean, viable_header_count As Long, array_inititated As Boolean
+    Dim column As Range
+    
+    For Each column In input1.Columns
+        ' Check if the column has at least one non-blank cell
+        If Application.WorksheetFunction.CountA(column) > 1 Then
+            viable_header_count = viable_header_count + 1
+            ReDim Preserve target_range_headers(1 To viable_header_count)
+            target_range_headers(viable_header_count) = column.Cells(1, 1) 'stor the header that has values in its rows
+            hasvalues = True
+        End If
+    Next column
+    
+    'If no headers with values found
+    If hasvalues = False Then
+        MsgBox "No viable header found in your output table, make sure there are values to lookup against in atleast 1 columns", vbCritical, "Maestro"
+        Exit Sub
+    End If
+    
+    viable_header_count = 0 'reset counter
+    For Each column In input2.Columns
+        If Not IsError(Application.Match(column.Cells(1, 1).Value, target_range_headers, 0)) Then 'Check if the header is in the viable headers array
+            ' Check if the column has at least one non-blank cell
+            If Application.WorksheetFunction.CountA(column) > 1 Then
+                viable_header_count = viable_header_count + 1
+                ReDim Preserve commonHeaders(1 To viable_header_count)
+                commonHeaders(viable_header_count) = column.Cells(1, 1) 'store the header that has values in its rows
+                array_inititated = True 'At least one matching header = we can go further
+            End If
+        End If
+    Next column
+    
+    'Check if both arrays have been initiated and have atleast 1 header in them
+    If array_inititated = False Then
+        MsgBox "No viable headers found to match the two tables, please check if there are matching headers with values and try again", vbCritical, "Maestro"
+        Exit Sub
+    End If
+    
+    'Show userform to get user selected header value
+    Xlookup.Show
+    
+    'Ask user for the header that is used for the lookup
+    Dim input3 As Variant
+    Set input3 = input1.Rows(1).Find(user_selected_header, , xlValues, xlWhole)
+    If input3 Is Nothing Then Exit Sub
+    
+    'Store input values in variables a and b.
+    Dim target_range As Variant, raw_data_range As Variant
+    target_range = input1.Value
+    raw_data_range = input2.Value
+    Set input2 = Nothing
+    
+    applicationOff
+    
+    'Create two dictionaries to store header and row indexes.
+    Dim dicH As Object, dicR As Object
+    Set dicH = CreateObject("Scripting.Dictionary")
+    Set dicR = CreateObject("Scripting.Dictionary")
+    
+    Dim raw_data_match_header As Long, raw_data_match_counter As Long
+    For j = 1 To UBound(raw_data_range, 2)
+        dicH(raw_data_range(1, j)) = j 'loop through all headers off the raw data table and add it to the dicH dictionary
+        If raw_data_range(1, j) = input3.Cells(1).Value2 Then
+          raw_data_match_header = j 'raw_data_match_header is location of the 3rd input header in the raw data rable
+          raw_data_match_counter = raw_data_match_counter + 1
+        End If
+    Next
+    
+    'find the column of the header in the target range just like we did for raw_data_match_header (target_range_match_header)
+    Dim target_range_match_header As Long, target_range_match_counter As Long
+    For j = 1 To UBound(target_range, 2)
+        If target_range(1, j) = input3.Cells(1).Value2 Then
+          target_range_match_header = j
+          target_range_match_counter = target_range_match_counter + 1
+        End If
+    Next
+    
+    'Check if the selected header is found in both the ranges
+    If raw_data_match_counter <> 1 Then
+        If raw_data_match_counter = 0 Then MsgBox "Selected header (" & input3.Value & ") not found within raw data range", vbCritical, "Maestro"
+        If raw_data_match_counter > 1 Then MsgBox "Selected header (" & input3.Value & ") found " & raw_data_match_counter & " times amongst raw data headers (1 allowed)", vbCritical, "Maestro"
+        input1.Rows(1).Select
+        GoTo ending
+    End If
+    
+    'Same for target range
+    If target_range_match_counter <> 1 Then
+        If target_range_match_counter = 0 Then MsgBox "Selected header (" & input3.Value & ") not found within target range", vbCritical, "Maestro"
+        If target_range_match_counter > 1 Then MsgBox "Selected header (" & input3.Value & ") found " & target_range_match_counter & " times amongst target range headers (1 allowed)", vbCritical, "Maestro"
+        input2.Rows(1).Select
+        GoTo ending
+    End If
+    
+    'Index the rows of raw_data_match_header(the columns where the input header is found) in dicR
+    'i is current row number
+    'raw_data_range(i, raw_data_match_header) is the key for the dictionary
+    For i = 1 To UBound(raw_data_range, 1)
+        dicR(raw_data_range(i, raw_data_match_header)) = i
+    Next
+    
+    'Set amount of rows and cols in array
+    Dim rows_count As Long, cols_count As Long
+    rows_count = UBound(target_range, 1)
+    cols_count = UBound(target_range, 2)
+    
+    'Loop through all columns in the target table (target_range)
+    'j is current column (header)
+    Dim col2 As Long, fil2 As Long
+    For j = 1 To cols_count
+      If j <> target_range_match_header Then 'if j = target_range_match_header then go next
+        col2 = dicH(target_range(1, j)) 'get the location (index) from the current header(target_range) in the raw data range (b)
+        If col2 <> 0 Then 'if there is no index go next (if there are no 2 matching headers)
+          For i = 2 To rows_count 'loop through each row in the current J (header)
+             fil2 = dicR(target_range(i, target_range_match_header)) 'Fil2 is range (b) row index location of the row value in range (target_range)
+             If fil2 > 0 Then target_range(i, j) = raw_data_range(fil2, col2) 'now that we have both locations its the question of backfilling
+          Next
+        End If
+      End If
+    Next
+    
+    'Create same array but without headers to copy back to sheet so tables wont get deleted
+    Dim target_without_headers As Variant
+    ReDim target_without_headers(1 To rows_count - 1, 1 To cols_count)
+    For i = 2 To rows_count
+        For j = 1 To cols_count
+            target_without_headers(i - 1, j) = target_range(i, j)
+        Next j
+    Next i
+    
+    'replace the previous input value with the new range, excluding headers
+    input1.Resize(UBound(target_range, 1) - 1, UBound(target_range, 2)).Offset(1).Value2 = target_without_headers
+    
+ending:
+    applicationOn
+End Sub

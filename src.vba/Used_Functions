@@ -1,0 +1,29 @@
+Option Explicit
+
+Public Sub applicationOff()
+    With Application
+        .EnableEvents = False
+        .EnableAnimations = False
+        .ScreenUpdating = False
+        .Calculation = xlCalculationManual
+        .EnableCancelKey = xlErrorHandler
+    End With
+End Sub
+Public Sub applicationOn()
+    With Application
+        .EnableEvents = True
+        .EnableAnimations = True
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .Calculation = xlCalculationAutomatic
+    End With
+End Sub
+
+'Set form to middle of excel
+Public Sub center_userform(ByRef UserForm As Object)
+    With UserForm
+        .StartUpPosition = 0
+        .Left = Application.Left + (0.5 * Application.Width) - (0.5 * .Width)
+        .Top = Application.Top + (0.5 * Application.Height) - (0.5 * .Height)
+    End With
+End Sub

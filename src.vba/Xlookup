@@ -1,0 +1,47 @@
+Option Explicit
+Private Sub Xlookup_search_box_Change()
+    Dim i As Long
+    
+    'Create a searchbar for the listbox
+    For i = Me.Xlookup_listbox.ListCount - 1 To 0 Step -1
+        If InStr(1, UCase(Me.Xlookup_listbox.List(i)), UCase(Me.Xlookup_search_box)) = 0 Then
+            Me.Xlookup_listbox.RemoveItem i 'Remove items if not in the search criteria
+        End If
+    Next i
+    
+    'If search box is empty then reset the listbox
+    If Xlookup_search_box.text = "" Then
+        Xlookup_listbox.Selected(selected_list_box_item) = False 'unselect current selected item with function
+        Call reset_listbox_with_headers
+    End If
+
+End Sub
+
+Private Sub UserForm_Initialize()
+    'Set form to middle of excel
+    center_userform Me
+    
+    Call reset_listbox_with_headers
+    Me.Xlookup_search_box.SetFocus 'let users search instantly
+End Sub
+Private Sub Xlookup_listbox_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
+    user_selected_header = Xlookup_listbox.List(selected_list_box_item)
+    Unload Me
+End Sub
+'Get the list index of the currently selected value in the list box
+Function selected_list_box_item() As Long
+    If Me.Xlookup_listbox.ListIndex >= 0 Then selected_list_box_item = Me.Xlookup_listbox.ListIndex
+End Function
+
+Sub reset_listbox_with_headers()
+    Dim i As Long, x As Long
+    Me.Xlookup_listbox.Clear
+    
+    'Create list box based on matching headers between the 2 tables
+    For i = LBound(commonHeaders) To UBound(commonHeaders)
+            Me.Xlookup_listbox.AddItem commonHeaders(i)
+    Next i
+    
+    'Select most likely header
+    If UBound(commonHeaders) = 1 Then Xlookup_listbox.Selected(0) = True
+End Sub
