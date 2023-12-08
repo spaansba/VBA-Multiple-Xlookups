@@ -69,7 +69,7 @@ Private Sub multiple_xlookups()
     End If
     
     'Show userform to get user selected header value
-    Xlookup.Show
+    Xlookup_Form.Show
     
     'Ask user for the header that is used for the lookup
     Dim input3 As Variant
